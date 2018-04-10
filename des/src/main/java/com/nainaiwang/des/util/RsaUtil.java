@@ -31,19 +31,24 @@ public class RsaUtil {
      * @throws IOException
      * @throws ClassNotFoundException
      */
-    public static Key getKey(String keyFile) throws IOException, ClassNotFoundException {
-        Key publicKey;
-        ObjectInputStream ois = null;
-        try {
-            /** 将文件中的公钥钥对象读出 */
-            ois = new ObjectInputStream(new FileInputStream(keyFile));
-            publicKey = (Key) ois.readObject();
-        } catch (Exception e) {
-            throw e;
-        } finally {
-            ois.close();
-        }
-        return publicKey;
+    public static Object getKey(String keyFile,String type) throws IOException, ClassNotFoundException {
+            ObjectInputStream ois = null;
+            try {
+
+                /** 将文件中的公钥钥对象读出 */
+                ois = new ObjectInputStream(new FileInputStream(keyFile));
+                if (type.equals("des")){
+                    String publicKey = (String) ois.readObject();
+                    return publicKey;
+                }else{
+                    Key publicKey = (Key) ois.readObject();
+                    return publicKey;
+                }
+            } catch (Exception e) {
+                throw e;
+            } finally {
+                ois.close();
+            }
     }
 
     /**
@@ -53,21 +58,26 @@ public class RsaUtil {
      * @throws IOException
      * @throws ClassNotFoundException
      */
-    public static Key setKey(String key, String keyFile) throws Exception {
-        /** 得到秘钥*/
-        Key publicKey = RsaUtil.getToPublicKey(key);
+    public static boolean setKey(String key, String keyFile,String type) throws Exception {
+
         ObjectOutputStream oos1 = null;
         try {
             /** 用对象流将生成的建行公钥写入文件 */
             oos1 = new ObjectOutputStream(new FileOutputStream(keyFile));
-            oos1.writeObject(key);
+            if (type.equals("pub")){
+                /** 得到秘钥*/
+                Key publicKey = RsaUtil.getToPublicKey(key);
+                oos1.writeObject(publicKey);
+            }else if (type.equals("des")){
+                oos1.writeObject(key);
+            }
         } catch (Exception e) {
             throw e;
         } finally {
             /** 清空缓存，关闭文件输出流 */
             oos1.close();
         }
-        return publicKey;
+        return true;
     }
 
     /**
@@ -159,7 +169,7 @@ public class RsaUtil {
      * @throws Exception
      */
     public static byte[] jhEncrypt(String source, String address) throws Exception {
-        Key publicKey = getKey(address);
+        Key publicKey = (Key) getKey(address,"pub");
         /** 得到Cipher对象来实现对源数据的RSA加密 */
         Cipher cipher = Cipher.getInstance(ALGORITHM);
         cipher.init(Cipher.ENCRYPT_MODE, publicKey);
@@ -177,7 +187,7 @@ public class RsaUtil {
      * @throws Exception
      */
     public static String decrypt(String cryptograph, String address) throws Exception {
-        Key publicKey = getKey(address);
+        Key publicKey = (Key) getKey(address,"pub");
         /** 得到Cipher对象对已用公钥加密的数据进行RSA解密 */
         Cipher cipher = Cipher.getInstance(ALGORITHM);
         cipher.init(Cipher.DECRYPT_MODE, publicKey);
