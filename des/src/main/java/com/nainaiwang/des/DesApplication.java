@@ -8,5 +8,6 @@ public class DesApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(DesApplication.class, args);
+        System.setProperty("java.net.preferIPv4Stack" , "true");
     }
 }
