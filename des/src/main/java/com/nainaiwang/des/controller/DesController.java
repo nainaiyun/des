@@ -134,8 +134,7 @@ public class DesController {
 
         /**获取对称秘钥*/
 //        String desKey = (String) RsaUtil.getKey(JH_DES_KEY_FILE,"des");
-        String desKey = "" +
-                "";
+        String desKey = "Xvc3GekQ1wcT6db4UceXV173NxnpEJcH";
         /**des加密*/
         byte[] requestMessagePriKeyDes = DESedeCoder.encrypt(requestMessage.getBytes("GBK"), desKey.getBytes());
 
