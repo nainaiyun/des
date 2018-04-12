@@ -115,10 +115,12 @@ public class DesController {
     public String sendRequest(HttpServletRequest request, HttpServletResponse response) throws Exception {
         /**获取请求报文*/
         String requestMessage = request.getParameter("requestMessage");
+        LOGGER.info(requestMessage);
         if (!requestMessage.equals(new String(requestMessage.getBytes(), "GBK"))) {
             LOGGER.info("字符集不是GBK");
             requestMessage =new String(requestMessage.getBytes(), "GBK");
         }
+        LOGGER.info(requestMessage);
         LOGGER.info("请求报文为："+requestMessage);
         /**获取我方私钥*/
         PrivateKey privateKey = (PrivateKey) RsaUtil.getKey(PRIVATE_KEY_FILE,"pri");
@@ -131,10 +133,11 @@ public class DesController {
         /**获取对称秘钥*/
         String desKey = (String) RsaUtil.getKey(JH_DES_KEY_FILE,"des");
         /**des加密*/
-        byte[] requestMessagePriKeyDes = DesedeUtil.encrypt(requestMessage, desKey);
+        byte[] requestMessagePriKeyDes = DesedeUtil.encrypt(Base64.encodeBase64String(requestMessage.getBytes()), desKey);
 
+        LOGGER.info("报文密文是："+Base64.encodeBase64String(requestMessagePriKeyDes));
         /**建行接口地址*/
-        String url = "http://128.192.182.51: 7001/merchant/Tran/jh8888";
+        String url = "http://128.192.182.51:7001/merchant/Tran/jh8888";
         HttpClient httpClient = new HttpClient();
         PostMethod method = new PostMethod(url);
         method.addParameter("xml", Base64.encodeBase64String(requestMessagePriKeyDes));
@@ -147,14 +150,38 @@ public class DesController {
             return "测试失败";
         } else {
             byte[] data = method.getResponseBody();
-            LOGGER.info("data为:"+Base64.encodeBase64String(data));
+            LOGGER.info("data长度：" + data.length);
+            LOGGER.info("data为"+Base64.encodeBase64String(data));
+            byte[] tmp = new byte[10];
+            System.arraycopy(data, 0, tmp, 0, tmp.length);
+            String return_code = new String(tmp);
+            LOGGER.info("数字签名位数：" + return_code);
+            Integer num = Integer.parseInt(return_code);
+            int sum =num+10;
+            tmp = new byte[data.length - sum];
+            System.arraycopy(data, sum, tmp, 0, tmp.length);
+            /**des解密*/
+            String str = DesedeUtil.decrypt(tmp, desKey);
+            return str;
 
-            return "测试成功！";
+//            if ("000000".equals(return_code)) {
+//
+//                tmp = new byte[data.length - 6];
+//                System.arraycopy(data, 6, tmp, 0, tmp.length);
+//                /**des解密*/
+//                String str = DesedeUtil.decrypt(tmp, desKey);
+//                return str;
+//            }else {
+//                tmp = new byte[data.length - 6];
+//                System.arraycopy(data, 6, tmp, 0, tmp.length);
+//                LOGGER.info("返回错误码：" + return_code + "，错误信息:" + new String(tmp));
+//                return "返回错误码：" + return_code + "，错误信息:" + new String(tmp);
+//            }
         }
     }
 
     @RequestMapping(value = "/receiveRequest", method = RequestMethod.POST)
-    public String receiveRequest(HttpServletRequest request, HttpServletResponse response) throws Exception {
+    public void receiveRequest(HttpServletRequest request, HttpServletResponse response) throws Exception {
         /**获取请求报文以及数字签名*/
         String requestMessage = request.getParameter("xml");
         String signature = request.getParameter("signature");
@@ -171,6 +198,7 @@ public class DesController {
         PublicKey publicKey = (PublicKey) RsaUtil.getKey(JH_PUBLIC_KEY_FILE,"pub");
         /**验证签名*/
         boolean bool = RsaUtil.verify(publicKey, signature.getBytes(), requestMessagePriKeyDes.getBytes());
+        OutputStream outputStream = response.getOutputStream();
         if (bool) {
             /**私钥解密请求报文*/
             //String encodedText = RsaUtil.decrypt(requestMessagePriKeyDes, PRIVATE_KEY_FILE);
@@ -184,16 +212,22 @@ public class DesController {
             if (statusCode != HttpStatus.SC_OK) {
                 //错误处理
                 LOGGER.error("请求失败,请稍后重试,状态码为:" + statusCode);
-                return "请求失败,请稍后重试,状态码为:" + statusCode;
+                String msg = "请求失败,请稍后重试,状态码为:" + statusCode;
+                outputStream.write(msg.getBytes());
             } else {
                 byte[] data = method.getResponseBody();
                 LOGGER.info("data为:"+Base64.encodeBase64String(data));
-                return "请求成功！";
+                /**des加密*/
+                byte[] str = DesedeUtil.encrypt(Base64.encodeBase64String(data), desKey);
+
+                outputStream.write(str);//encrypt()使用约定的密钥来加密pub_key
+
             }
         } else {
             LOGGER.error("数字签名错误");
-            return "数字签名错误";
+            String msg =  "数字签名错误";
+            outputStream.write(msg.getBytes());
         }
-
+        outputStream.flush();
     }
 }
