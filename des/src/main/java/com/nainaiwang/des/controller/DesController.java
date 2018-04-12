@@ -1,11 +1,13 @@
 package com.nainaiwang.des.controller;
 
+import com.nainaiwang.des.util.DESedeCoder;
 import com.nainaiwang.des.util.DesedeUtil;
 import com.nainaiwang.des.util.RsaUtil;
 import org.apache.commons.httpclient.HttpClient;
 import org.apache.commons.httpclient.HttpStatus;
 import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.tomcat.util.codec.binary.Base64;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -131,9 +133,11 @@ public class DesController {
 //        byte[] encodedText = RsaUtil.jhEncrypt(requestMessage, JH_PUBLIC_KEY_FILE);
 
         /**获取对称秘钥*/
-        String desKey = (String) RsaUtil.getKey(JH_DES_KEY_FILE,"des");
+//        String desKey = (String) RsaUtil.getKey(JH_DES_KEY_FILE,"des");
+        String desKey = "" +
+                "";
         /**des加密*/
-        byte[] requestMessagePriKeyDes = DesedeUtil.encrypt(Base64.encodeBase64String(requestMessage.getBytes()), desKey);
+        byte[] requestMessagePriKeyDes = DESedeCoder.encrypt(requestMessage.getBytes("GBK"), desKey.getBytes());
 
         LOGGER.info("报文密文是："+Base64.encodeBase64String(requestMessagePriKeyDes));
         /**建行接口地址*/
@@ -161,8 +165,11 @@ public class DesController {
             tmp = new byte[data.length - sum];
             System.arraycopy(data, sum, tmp, 0, tmp.length);
             /**des解密*/
-            String str = DesedeUtil.decrypt(tmp, desKey);
-            return str;
+            LOGGER.info(desKey);
+
+            byte [] str = DESedeCoder.decrypt(tmp, desKey.getBytes());
+            LOGGER.info("解密后"+new String(str));
+            return new String(str);
 
 //            if ("000000".equals(return_code)) {
 //

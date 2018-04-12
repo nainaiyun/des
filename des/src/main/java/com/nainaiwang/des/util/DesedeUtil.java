@@ -3,6 +3,7 @@ package com.nainaiwang.des.util;
 import org.apache.tomcat.util.codec.binary.Base64;
 import org.slf4j.LoggerFactory;
 
+import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -10,8 +11,56 @@ import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.DESKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 
 public class DesedeUtil {
+
+    /**
+     * 密钥算法
+     */
+    private static final String KEY_ALGORITHM = "DESede";
+
+    /**
+     * 加密/解密算法 / 工作模式 / 填充方式
+     * Java 6支持PKCS5Padding填充方式
+     * Bouncy Castle支持PKCS7Padding填充方式
+     */
+    private static final String CIPHER_ALGORITHM = "DESede/ECB/PKCS5Padding";
+
+
+    /**
+     * des加密
+     * @param source    源字符串
+     * @param key   密钥
+     * @return  加密后的密文
+     * @throws Exception
+     */
+    public static String encrypt2(String source, String key) throws Exception {
+        byte[] sourceBytes = source.getBytes("UTF-8");
+        byte[] keyBytes = Base64.decodeBase64(key);
+        Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
+        cipher.init(Cipher.ENCRYPT_MODE,new SecretKeySpec(keyBytes, KEY_ALGORITHM));
+        byte[] decrypted = cipher.doFinal(sourceBytes);
+        return Base64.encodeBase64String(decrypted);
+    }
+
+    /**
+     * des解密
+     * @param encryptStr    密文
+     * @param key   密钥
+     * @return  源字符串
+     * @throws Exception
+     */
+    public static String decrypt2(String encryptStr, String key) throws Exception {
+        byte[] sourceBytes = Base64.decodeBase64(encryptStr);
+        byte[] keyBytes = Base64.decodeBase64(key);
+        Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
+        cipher.init(Cipher.DECRYPT_MODE,new SecretKeySpec(keyBytes, KEY_ALGORITHM));
+        byte[] decoded = cipher.doFinal(sourceBytes);
+        return new String(decoded, "UTF-8");
+    }
+
+
     /**
      * 对密钥进行DES加密。加密成功后的byte[] 直接传输给客户方。
      *
@@ -21,7 +70,7 @@ public class DesedeUtil {
      */
     private static final org.slf4j.Logger LOGGER = LoggerFactory.getLogger(DesedeUtil.class);
 
-    public static byte[] encrypt(String key_in, String mch_no) {
+    public static byte[] encrypt(String key_in, String mch_no) throws UnsupportedEncodingException {
         SimpleDateFormat sdf = new SimpleDateFormat("yyMMdd");
         String key_str = mch_no + sdf.format(new Date());
         SecretKey key = null;
@@ -34,7 +83,7 @@ public class DesedeUtil {
             LOGGER.error("密钥为空");
             return null;
         }
-        byte[] key_byte = Base64.decodeBase64(key_in);
+        byte[] key_byte = Base64.decodeBase64(key_in.getBytes("GBK"));
 
         Cipher cipher;
         byte[] result = null;
@@ -48,6 +97,7 @@ public class DesedeUtil {
 
         return result;
     }
+
 
     /**
      * 对密钥进行DES解密。解密成功后的就是对方的密钥。
@@ -115,10 +165,13 @@ public class DesedeUtil {
         return bitmap;
     }
 
-    public static void main(String[] args) {
-        String str1 = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCE6ZEvt1J7l9D90J+7SQBc5wwGzWVptU0F+tIk/W/UbmVuw634j2nIELp7SNuUsXkQ+ab2EXVZK8FbhUXHhyl873MyM/nrrWsFHvR6ZKdcaiol0sF57AwUG2G6JOg4nfSkeDBOKoJB/g9RDWp/+opte/MwOrs3T/xgcfndlhduhQIDAQAB";
+    public static void main(String[] args) throws UnsupportedEncodingException {
+        String str1 = "aaaa你";
+        str1 =new String(str1.getBytes("GBK"), "GBK");
+
         System.out.println("公钥原文:" + str1);
         String str2 = "4100000109";
+
         byte[] key_byte = encrypt(str1, str2);
         System.out.println("加密后长度:" + key_byte.length);
         System.out.println("加密后数据:" + Base64.encodeBase64String(key_byte));
