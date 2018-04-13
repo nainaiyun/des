@@ -122,7 +122,7 @@ public class DesController {
             LOGGER.info("字符集不是GBK");
             requestMessage =new String(requestMessage.getBytes(), "GBK");
         }
-        LOGGER.info(requestMessage);
+        LOGGER.info("请求报文字符集为："+getEncoding(requestMessage));
         LOGGER.info("请求报文为："+requestMessage);
         /**获取我方私钥*/
         PrivateKey privateKey = (PrivateKey) RsaUtil.getKey(PRIVATE_KEY_FILE,"pri");
@@ -133,56 +133,60 @@ public class DesController {
 //        byte[] encodedText = RsaUtil.jhEncrypt(requestMessage, JH_PUBLIC_KEY_FILE);
 
         /**获取对称秘钥*/
-//        String desKey = (String) RsaUtil.getKey(JH_DES_KEY_FILE,"des");
-        String desKey = "Xvc3GekQ1wcT6db4UceXV173NxnpEJcH";
+        String desKey = (String) RsaUtil.getKey(JH_DES_KEY_FILE,"des");
+//        String desKey = "Xvc3GekQ1wcT6db4UceXV173NxnpEJcH";
+        byte [] bytes = Base64.decodeBase64(desKey);
         /**des加密*/
-        byte[] requestMessagePriKeyDes = DESedeCoder.encrypt(requestMessage.getBytes("GBK"), desKey.getBytes());
+        byte[] requestMessagePriKeyDes = DESedeCoder.encrypt(requestMessage.getBytes("GBK"), bytes);
 
         LOGGER.info("报文密文是："+Base64.encodeBase64String(requestMessagePriKeyDes));
         /**建行接口地址*/
         String url = "http://128.192.182.51:7001/merchant/Tran/jh8888";
         HttpClient httpClient = new HttpClient();
         PostMethod method = new PostMethod(url);
+
         method.addParameter("xml", Base64.encodeBase64String(requestMessagePriKeyDes));
         method.addParameter("signature", Base64.encodeBase64String(signature));
         httpClient.getParams().setSoTimeout(3000);
         int statusCode = httpClient.executeMethod(method);
         if (statusCode != HttpStatus.SC_OK) {
             //错误处理
-            LOGGER.error("获取失败，请稍后重试");
-            return "测试失败";
+            LOGGER.error("响应错误，错误码:"+statusCode);
+            return "响应错误，错误码:"+statusCode;
         } else {
             byte[] data = method.getResponseBody();
             LOGGER.info("data长度：" + data.length);
             LOGGER.info("data为"+Base64.encodeBase64String(data));
             byte[] tmp = new byte[10];
             System.arraycopy(data, 0, tmp, 0, tmp.length);
-            String return_code = new String(tmp);
-            LOGGER.info("数字签名位数：" + return_code);
-            Integer num = Integer.parseInt(return_code);
-            int sum =num+10;
+            String signNum = new String(tmp);
+            LOGGER.info("数字签名位数：" + signNum);
+            Integer sign_num = Integer.parseInt(signNum);
+
+            byte [] sign = new byte[sign_num];
+            System.arraycopy(data, 10, sign, 0, sign.length);
+
+
+            int sum =sign_num+10;
             tmp = new byte[data.length - sum];
+
+
             System.arraycopy(data, sum, tmp, 0, tmp.length);
+
             /**des解密*/
-            LOGGER.info(desKey);
-
-            byte [] str = DESedeCoder.decrypt(tmp, desKey.getBytes());
+            LOGGER.info("对称秘钥是："+desKey);
+            byte [] str = DESedeCoder.decrypt(tmp, bytes);
             LOGGER.info("解密后"+new String(str));
-            return new String(str);
 
-//            if ("000000".equals(return_code)) {
-//
-//                tmp = new byte[data.length - 6];
-//                System.arraycopy(data, 6, tmp, 0, tmp.length);
-//                /**des解密*/
-//                String str = DesedeUtil.decrypt(tmp, desKey);
-//                return str;
-//            }else {
-//                tmp = new byte[data.length - 6];
-//                System.arraycopy(data, 6, tmp, 0, tmp.length);
-//                LOGGER.info("返回错误码：" + return_code + "，错误信息:" + new String(tmp));
-//                return "返回错误码：" + return_code + "，错误信息:" + new String(tmp);
-//            }
+            /**获取建行公钥*/
+            PublicKey publicKey = (PublicKey) RsaUtil.getKey(JH_PUBLIC_KEY_FILE,"pub");
+            /**验证签名*/
+            boolean bool2 = RsaUtil.verify(publicKey, sign, str);
+            if (bool2){
+                return new String(str);
+            }else {
+                return "签名错误，可能被篡改！";
+            }
         }
     }
 
@@ -198,12 +202,14 @@ public class DesController {
 
         /**获取对称秘钥*/
         String desKey = (String) RsaUtil.getKey(JH_DES_KEY_FILE,"des");
+        /**解码deskey*/
+        byte [] des_key = Base64.decodeBase64(desKey);
         /**des解密*/
-        String requestMessagePriKeyDes = DesedeUtil.decrypt(requestMessage.getBytes(), desKey);
+        byte[] requestMessagePriKeyDes = DESedeCoder.decrypt(requestMessage.getBytes(), des_key);
         /**获取建行公钥*/
         PublicKey publicKey = (PublicKey) RsaUtil.getKey(JH_PUBLIC_KEY_FILE,"pub");
         /**验证签名*/
-        boolean bool = RsaUtil.verify(publicKey, signature.getBytes(), requestMessagePriKeyDes.getBytes());
+        boolean bool = RsaUtil.verify(publicKey, signature.getBytes(), requestMessagePriKeyDes);
         OutputStream outputStream = response.getOutputStream();
         if (bool) {
             /**私钥解密请求报文*/
@@ -212,7 +218,7 @@ public class DesController {
             String url = "http://172.16.2.21:80/bankNotice/jianshe";
             HttpClient httpClient = new HttpClient();
             PostMethod method = new PostMethod(url);
-            method.addParameter("xml", requestMessagePriKeyDes);
+            method.addParameter("xml", Base64.encodeBase64String(requestMessagePriKeyDes));
             httpClient.getParams().setSoTimeout(3000);
             int statusCode = httpClient.executeMethod(method);
             if (statusCode != HttpStatus.SC_OK) {
@@ -223,11 +229,17 @@ public class DesController {
             } else {
                 byte[] data = method.getResponseBody();
                 LOGGER.info("data为:"+Base64.encodeBase64String(data));
+                /**获取我方私钥*/
+                PrivateKey privateKey = (PrivateKey) RsaUtil.getKey(PRIVATE_KEY_FILE,"pri");
+                /**签名*/
+                byte[] signature2 = RsaUtil.sign(privateKey, data);
+                int signature2Len =signature2.length;
+                String signature2_len=String.format("%010d", signature2Len);
+                outputStream.write(signature2_len.getBytes());
+                outputStream.write(signature2);
                 /**des加密*/
-                byte[] str = DesedeUtil.encrypt(Base64.encodeBase64String(data), desKey);
-
+                byte[] str = DESedeCoder.encrypt(data, des_key);
                 outputStream.write(str);//encrypt()使用约定的密钥来加密pub_key
-
             }
         } else {
             LOGGER.error("数字签名错误");
@@ -235,5 +247,55 @@ public class DesController {
             outputStream.write(msg.getBytes());
         }
         outputStream.flush();
+    }
+
+//    public static String guessEncoding(byte[] bytes) {
+//        String DEFAULT_ENCODING = "UTF-8";
+//        UniversalDetector detector =
+//                new org.mozilla.universalchardet.UniversalDetector(null);
+//        detector.handleData(bytes, 0, bytes.length);
+//        detector.dataEnd();
+//        String encoding = detector.getDetectedCharset();
+//        detector.reset();
+//        if (encoding == null) {
+//            encoding = DEFAULT_ENCODING;
+//        }
+//        return encoding;
+//    }
+
+    public static String getEncoding(String str) {
+        String encode = "GB2312";
+        try {
+            if (str.equals(new String(str.getBytes(encode), encode))) {
+                String s = encode;
+                return s;
+            }
+        } catch (Exception exception) {
+        }
+        encode = "ISO-8859-1";
+        try {
+            if (str.equals(new String(str.getBytes(encode), encode))) {
+                String s1 = encode;
+                return s1;
+            }
+        } catch (Exception exception1) {
+        }
+        encode = "UTF-8";
+        try {
+            if (str.equals(new String(str.getBytes(encode), encode))) {
+                String s2 = encode;
+                return s2;
+            }
+        } catch (Exception exception2) {
+        }
+        encode = "GBK";
+        try {
+            if (str.equals(new String(str.getBytes(encode), encode))) {
+                String s3 = encode;
+                return s3;
+            }
+        } catch (Exception exception3) {
+        }
+        return "";
     }
 }

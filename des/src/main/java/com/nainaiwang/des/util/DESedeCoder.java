@@ -29,7 +29,8 @@ public class DESedeCoder {
     /**
      * 加密/解密算法/工作模式/填充方式
      * */
-    public static final String CIPHER_ALGORITHM="DESede";
+    public static final String CIPHER_ALGORITHM1="DESede";
+    public static final String CIPHER_ALGORITHM2="DESede/ECB/PKCS5Padding";
 
     /**
      *
@@ -72,7 +73,7 @@ public class DESedeCoder {
         //还原密钥
         Key k=toKey(key);
         //实例化
-        Cipher cipher=Cipher.getInstance(CIPHER_ALGORITHM);
+        Cipher cipher=Cipher.getInstance(CIPHER_ALGORITHM1);
         //初始化，设置为加密模式
         cipher.init(Cipher.ENCRYPT_MODE, k);
         //执行操作
@@ -88,7 +89,7 @@ public class DESedeCoder {
         //欢迎密钥
         Key k =toKey(key);
         //实例化
-        Cipher cipher=Cipher.getInstance(CIPHER_ALGORITHM);
+        Cipher cipher=Cipher.getInstance(CIPHER_ALGORITHM1);
         //初始化，设置为解密模式
         cipher.init(Cipher.DECRYPT_MODE, k);
         //执行操作
@@ -106,10 +107,12 @@ public class DESedeCoder {
         byte[] key=DESedeCoder.initkey();
         System.out.println("密钥：/t"+Base64.encodeBase64String(key));
         //加密数据
-        byte[] data=DESedeCoder.encrypt(str.getBytes("GBK"), "aaadsdaiaaadsdaiaaadsdaiaaadsdai".getBytes());
+        byte[] data=DESedeCoder.encrypt(str.getBytes("GBK"), "123456789012345678901234".getBytes());
         System.out.println("加密后：/t"+Base64.encodeBase64String(data));
         //解密数据
-        data=DESedeCoder.decrypt(data, "aaadsdaiaaadsdaiaaadsdaiaaadsda".getBytes());
-        System.out.println("解密后：/t"+new String(data,"utf-8"));
+        data=DESedeCoder.decrypt(data, "123456789012345678901234".getBytes());
+        System.out.println("解密后：/t"+new String(data,"GBK"));
+
+        System.out.println(String.format("%010d", 25));
     }
 }
