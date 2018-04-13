@@ -7,9 +7,11 @@ import org.apache.commons.httpclient.HttpClient;
 import org.apache.commons.httpclient.HttpStatus;
 import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.tomcat.util.codec.binary.Base64;
+import org.mozilla.universalchardet.UniversalDetector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -113,8 +115,10 @@ public class DesController {
         }
     }
 
+    @ResponseBody
     @RequestMapping(value = "/sendRequest", method = RequestMethod.POST)
     public String sendRequest(HttpServletRequest request, HttpServletResponse response) throws Exception {
+        request.setCharacterEncoding("GBK");
         /**获取请求报文*/
         String requestMessage = request.getParameter("requestMessage");
         LOGGER.info(requestMessage);
@@ -138,7 +142,7 @@ public class DesController {
         byte [] bytes = Base64.decodeBase64(desKey);
         /**des加密*/
         byte[] requestMessagePriKeyDes = DESedeCoder.encrypt(requestMessage.getBytes("GBK"), bytes);
-
+        LOGGER.info("加密后byte的原字符集是："+guessEncoding(requestMessagePriKeyDes));
         LOGGER.info("报文密文是："+Base64.encodeBase64String(requestMessagePriKeyDes));
         /**建行接口地址*/
         String url = "http://128.192.182.51:7001/merchant/Tran/jh8888";
@@ -190,6 +194,7 @@ public class DesController {
         }
     }
 
+
     @RequestMapping(value = "/receiveRequest", method = RequestMethod.POST)
     public void receiveRequest(HttpServletRequest request, HttpServletResponse response) throws Exception {
         /**获取请求报文以及数字签名*/
@@ -200,16 +205,23 @@ public class DesController {
             requestMessage =new String(requestMessage.getBytes(), "GBK");
         }
 
+        LOGGER.info("收到建行的请求报文："+requestMessage);
+
+        /**对请求报文以及数字签名进行解码*/
+        byte [] bytes = Base64.decodeBase64(requestMessage);
+        byte [] signature_byte = Base64.decodeBase64(signature);
+
         /**获取对称秘钥*/
         String desKey = (String) RsaUtil.getKey(JH_DES_KEY_FILE,"des");
         /**解码deskey*/
         byte [] des_key = Base64.decodeBase64(desKey);
         /**des解密*/
-        byte[] requestMessagePriKeyDes = DESedeCoder.decrypt(requestMessage.getBytes(), des_key);
+        byte[] requestMessagePriKeyDes = DESedeCoder.decrypt(bytes, des_key);
+        LOGGER.info("解密成功！收到建行的请求报文明文："+new String(requestMessagePriKeyDes));
         /**获取建行公钥*/
         PublicKey publicKey = (PublicKey) RsaUtil.getKey(JH_PUBLIC_KEY_FILE,"pub");
         /**验证签名*/
-        boolean bool = RsaUtil.verify(publicKey, signature.getBytes(), requestMessagePriKeyDes);
+        boolean bool = RsaUtil.verify(publicKey, signature_byte, requestMessagePriKeyDes);
         OutputStream outputStream = response.getOutputStream();
         if (bool) {
             /**私钥解密请求报文*/
@@ -242,26 +254,31 @@ public class DesController {
                 outputStream.write(str);//encrypt()使用约定的密钥来加密pub_key
             }
         } else {
-            LOGGER.error("数字签名错误");
-            String msg =  "数字签名错误";
+            LOGGER.error("签名错误，可能被篡改！");
+            String msg =  "签名错误，可能被篡改！";
             outputStream.write(msg.getBytes());
         }
         outputStream.flush();
     }
 
-//    public static String guessEncoding(byte[] bytes) {
-//        String DEFAULT_ENCODING = "UTF-8";
-//        UniversalDetector detector =
-//                new org.mozilla.universalchardet.UniversalDetector(null);
-//        detector.handleData(bytes, 0, bytes.length);
-//        detector.dataEnd();
-//        String encoding = detector.getDetectedCharset();
-//        detector.reset();
-//        if (encoding == null) {
-//            encoding = DEFAULT_ENCODING;
-//        }
-//        return encoding;
-//    }
+    @RequestMapping(value = "/makeKey", method = RequestMethod.POST)
+    public void makeKey(HttpServletRequest request, HttpServletResponse response) throws Exception {
+
+    }
+
+    public static String guessEncoding(byte[] bytes) {
+        String DEFAULT_ENCODING = "UTF-8";
+        UniversalDetector detector =
+                new org.mozilla.universalchardet.UniversalDetector(null);
+        detector.handleData(bytes, 0, bytes.length);
+        detector.dataEnd();
+        String encoding = detector.getDetectedCharset();
+        detector.reset();
+        if (encoding == null) {
+            encoding = DEFAULT_ENCODING;
+        }
+        return encoding;
+    }
 
     public static String getEncoding(String str) {
         String encode = "GB2312";
